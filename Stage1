@@ -1,0 +1,81 @@
+import os
+import re
+import shlex
+
+
+class VFSEmulator:
+    def __init__(self):
+        self.vfs_name = "myvfs"
+        self.current_virtual_dir = "/"
+        
+        self.env_vars = {
+            'VFS': self.vfs_name,
+            'PWD': self.current_virtual_dir,
+            'USER': 'vfs_user',
+            'HOME': '/home/vfs_user'
+        }
+
+    def expand_variables(self, text):
+        """Раскрывает переменные окружения в тексте"""
+
+        def replace_var(match):
+            var_name = match.group(1) or match.group(2)
+            # Используем только переменные эмулятора
+            return self.env_vars.get(var_name, '')
+
+        # Ищем шаблоны ${VAR} и $VAR
+        pattern = r'\$\{(\w+)\}|\$(\w+)'
+        return re.sub(pattern, replace_var, text)
+
+    def parse_command(self, input_line):
+        """Парсит входную строку с раскрытием переменных"""
+        expanded_input = self.expand_variables(input_line)
+        try:
+            return shlex.split(expanded_input)
+        except ValueError as e:
+            print(f"Syntax error: {e}")
+            return None
+
+    def execute_command(self, command, args):
+        """Выполняет встроенные команды-заглушки"""
+        if command == "exit":
+            print("exit: terminating VFS emulator")
+            exit(0)
+        elif command == "ls":
+            print(f"ls: arguments {args} (stub - would list virtual directory)")
+        elif command == "cd":
+            print(f"cd: arguments {args} (stub - would change virtual directory)")
+        else:
+            print(f"{command}: command not found")
+
+    def run(self):
+        """Основной цикл REPL"""
+        print("VFS Emulator started. Type 'exit' to exit.")
+        print("All commands are stubs for now.")
+
+        while True:
+            try:
+                user_input = input(f"{self.vfs_name}> ").strip()
+
+                if not user_input:
+                    continue
+
+                parts = self.parse_command(user_input)
+                if parts is None:
+                    continue
+
+                command = parts[0]
+                args = parts[1:]
+
+                self.execute_command(command, args)
+
+            except KeyboardInterrupt:
+                print("\nUse 'exit' to exit the emulator")
+            except EOFError:
+                print("\nExiting...")
+                break
+
+
+if __name__ == "__main__":
+    emulator = VFSEmulator()
+    emulator.run()
