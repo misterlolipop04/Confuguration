@@ -1,5 +1,9 @@
 help
 ls -l
 cd $HOME
+ls $USER
+cd $VFS
 ls
+non existent command
+run_script non exisrent file
 exit
