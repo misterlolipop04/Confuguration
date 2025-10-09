@@ -4,13 +4,19 @@ import shlex
 
 
 class VFSEmulator:
+    """
+    Эмулятор виртуальной файловой системы (VFS)
+    Имитирует базовые команды оболочки в изолированной виртуальной среде
+    """
+
     def __init__(self):
-        self.vfs_name = "myvfs"
-        self.current_virtual_dir = "/"
-        
+        # Инициализация эмулятора VFS
+        self.vfs_name = "myvfs"  # Название виртуальной файловой системы
+        self.current_virtual_dir = "/"  # Текущая виртуальная директория
+
+        # Базовые переменные окружения (без доступа к реальной файловой системе)
         self.env_vars = {
             'VFS': self.vfs_name,
-            'PWD': self.current_virtual_dir,
             'USER': 'vfs_user',
             'HOME': '/home/vfs_user'
         }
@@ -19,22 +25,41 @@ class VFSEmulator:
         """Раскрывает переменные окружения в тексте"""
 
         def replace_var(match):
+            # Извлекаем имя переменной из группы регулярного выражения
             var_name = match.group(1) or match.group(2)
-            # Используем только переменные эмулятора
+            # Используем только переменные эмулятора, не реального окружения
             return self.env_vars.get(var_name, '')
 
-        # Ищем шаблоны ${VAR} и $VAR
+        # Ищем шаблоны ${VAR} и $VAR с помощью регулярного выражения
         pattern = r'\$\{(\w+)\}|\$(\w+)'
         return re.sub(pattern, replace_var, text)
 
     def parse_command(self, input_line):
         """Парсит входную строку с раскрытием переменных"""
+        # Сначала раскрываем переменные окружения в строке
         expanded_input = self.expand_variables(input_line)
         try:
+            # Используем shlex для корректного разбиения на аргументы с учетом кавычек
             return shlex.split(expanded_input)
         except ValueError as e:
             print(f"Syntax error: {e}")
             return None
+
+    def show_help(self):
+        """Показывает справку по доступным командам"""
+        help_text = """
+Available commands:
+  ls [args]    - List directory contents (stub)
+  cd [dir]     - Change directory (stub)
+  help         - Show this help message
+  exit         - Exit the VFS emulator
+
+Environment variables:
+  $VFS, $USER, $HOME - Basic environment variables
+
+Note: All commands are currently stubs and don't perform actual filesystem operations.
+"""
+        print(help_text.strip())
 
     def execute_command(self, command, args):
         """Выполняет встроенные команды-заглушки"""
@@ -45,37 +70,46 @@ class VFSEmulator:
             print(f"ls: arguments {args} (stub - would list virtual directory)")
         elif command == "cd":
             print(f"cd: arguments {args} (stub - would change virtual directory)")
+        elif command == "help":
+            self.show_help()
         else:
             print(f"{command}: command not found")
+            print("Type 'help' for available commands")
 
     def run(self):
-        """Основной цикл REPL"""
-        print("VFS Emulator started. Type 'exit' to exit.")
-        print("All commands are stubs for now.")
+        """Основной цикл REPL (Read-Eval-Print Loop)"""
+        print("VFS Emulator started. Type 'help' for available commands, 'exit' to exit.")
 
         while True:
             try:
+                # Чтение команды от пользователя с отображением приглашения
                 user_input = input(f"{self.vfs_name}> ").strip()
 
+                # Пропускаем пустой ввод
                 if not user_input:
                     continue
 
+                # Разбираем команду на составляющие
                 parts = self.parse_command(user_input)
                 if parts is None:
-                    continue
+                    continue  # Пропускаем команды с ошибками синтаксиса
 
-                command = parts[0]
-                args = parts[1:]
+                command = parts[0]  # Первый элемент - сама команда
+                args = parts[1:]  # Остальные элементы - аргументы
 
+                # Выполняем команду
                 self.execute_command(command, args)
 
             except KeyboardInterrupt:
+                # Обработка Ctrl+C - не выходим, а показываем подсказку
                 print("\nUse 'exit' to exit the emulator")
             except EOFError:
+                # Обработка Ctrl+D - корректно завершаем работу
                 print("\nExiting...")
                 break
 
 
 if __name__ == "__main__":
+    # Точка входа в программу - создаем и запускаем эмулятор
     emulator = VFSEmulator()
     emulator.run()
