@@ -1,0 +1,234 @@
+import os
+import re
+import shlex
+import sys
+import argparse
+
+
+class VFSEmulator:
+    """
+    Эмулятор виртуальной файловой системы (VFS)
+    Имитирует базовые команды оболочки в виртуальной среде
+    """
+
+    def __init__(self, vfs_root=None, startup_script=None):
+        # Инициализация эмулятора VFS
+        self.vfs_name = "myvfs"  # Название виртуальной файловой системы
+        self.current_virtual_dir = "/"  # Текущая виртуальная директория
+        self.vfs_root = vfs_root  # Физический корневой каталог VFS (если есть)
+        self.startup_script = startup_script  # Скрипт для автоматического выполнения при запуске
+        self.script_mode = False  # Флаг режима выполнения скрипта
+
+        # Базовые переменные окружения
+        self.env_vars = {
+            'VFS': self.vfs_name,
+            'USER': 'vfs_user',
+            'HOME': '/home/vfs_user'
+        }
+
+        # Отладочный вывод параметров
+        print("=== VFS Emulator Debug Info ===")
+        print(f"VFS Root: {self.vfs_root}")
+        print(f"Startup Script: {self.startup_script}")
+        print("===============================")
+
+    def expand_variables(self, text):
+        """
+        Подставляет значения переменных окружения в текст
+        Поддерживает синтаксис ${VAR} и $VAR
+        """
+
+        def replace_var(match):
+            # Извлекаем имя переменной из группы регулярного выражения
+            var_name = match.group(1) or match.group(2)
+            # Возвращаем значение переменной или пустую строку если не найдена
+            return self.env_vars.get(var_name, '')
+
+        # Регулярное выражение для поиска переменных вида ${VAR} и $VAR
+        pattern = r'\$\{(\w+)\}|\$(\w+)'
+        return re.sub(pattern, replace_var, text)
+
+    def parse_command(self, input_line):
+        """
+        Разбирает введенную команду с учетом подстановки переменных
+        и разбивает на аргументы с учетом кавычек
+        """
+        # Сначала подставляем переменные окружения
+        expanded_input = self.expand_variables(input_line)
+        try:
+            # Используем shlex для корректного разбиения строки на аргументы
+            return shlex.split(expanded_input)
+        except ValueError as e:
+            print(f"Syntax error: {e}")
+            return None
+
+    def show_help(self):
+        """Показывает справочную информацию по доступным командам"""
+        help_text = """
+Available commands:
+  ls [args]        - List directory contents (stub)
+  cd [dir]         - Change directory (stub)
+  help             - Show this help message
+  exit             - Exit the VFS emulator
+  run_script [file] - Execute a script file
+
+Environment variables:
+  $VFS, $USER, $HOME - Basic environment variables
+
+Note: All commands are currently stubs and don't perform actual filesystem operations.
+"""
+        print(help_text.strip())
+
+    def execute_script(self, script_path):
+        """
+        Выполняет скрипт из файла
+        Возвращает True если выполнение успешно, False при ошибках
+        """
+        try:
+            # Читаем файл скрипта
+            with open(script_path, 'r') as file:
+                lines = file.readlines()
+
+            # Включаем режим скрипта (для обработки ошибок)
+            self.script_mode = True
+
+            # Обрабатываем каждую строку скрипта
+            for line_num, line in enumerate(lines, 1):
+                line = line.strip()
+                # Пропускаем пустые строки и комментарии
+                if not line or line.startswith('#'):
+                    continue
+
+                # В режиме скрипта показываем команду как при интерактивном вводе
+                if self.script_mode:
+                    print(f"{self.vfs_name}> {line}")
+
+                # Разбираем команду
+                parts = self.parse_command(line)
+                if parts is None:
+                    print(f"Script error at line {line_num}: syntax error")
+                    if self.script_mode:
+                        return False  # Останавливаем выполнение при ошибке в режиме скрипта
+                    continue
+
+                command = parts[0]
+                args = parts[1:]
+
+                # Выполняем команду
+                if command == "exit":
+                    print("exit: terminating VFS emulator")
+                    return True
+                elif command == "ls":
+                    print(f"ls: arguments {args} (stub - would list virtual directory)")
+                elif command == "cd":
+                    print(f"cd: arguments {args} (stub - would change virtual directory)")
+                elif command == "help":
+                    self.show_help()
+                elif command == "run_script":
+                    # Рекурсивный вызов для выполнения вложенного скрипта
+                    if args:
+                        script_success = self.execute_script(args[0])
+                        if not script_success and self.script_mode:
+                            return False  # Останавливаем выполнение при ошибке в подскрипте
+                    else:
+                        print("run_script: missing script file")
+                        if self.script_mode:
+                            return False
+                else:
+                    print(f"{command}: command not found")
+                    if self.script_mode:
+                        return False  # Останавливаем выполнение при ошибке
+
+            # Выключаем режим скрипта после успешного выполнения
+            self.script_mode = False
+            return True
+
+        except FileNotFoundError:
+            print(f"Script error: file '{script_path}' not found")
+            if self.script_mode:
+                return False
+            return True
+        except Exception as e:
+            print(f"Script error: {e}")
+            if self.script_mode:
+                return False
+            return True
+
+    def execute_command(self, command, args):
+        """Выполняет одиночную команду с аргументами"""
+        if command == "exit":
+            print("exit: terminating VFS emulator")
+            exit(0)
+        elif command == "ls":
+            print(f"ls: arguments {args} (stub - would list virtual directory)")
+        elif command == "cd":
+            print(f"cd: arguments {args} (stub - would change virtual directory)")
+        elif command == "help":
+            self.show_help()
+        elif command == "run_script":
+            if args:
+                self.execute_script(args[0])
+            else:
+                print("run_script: missing script file")
+        else:
+            print(f"{command}: command not found")
+            print("Type 'help' for available commands")
+
+    def run(self):
+        """Основной цикл выполнения эмулятора"""
+        # Если указан стартовый скрипт, выполняем его
+        if self.startup_script:
+            print(f"Executing startup script: {self.startup_script}")
+            success = self.execute_script(self.startup_script)
+            if not success:
+                print("Startup script execution failed")
+                return
+            # После выполнения скрипта либо выходим, либо продолжаем в интерактивном режиме
+            if not self.script_mode:  # Если скрипт не завершился exit
+                print("Startup script completed. Entering interactive mode.")
+
+        print("VFS Emulator started. Type 'help' for available commands, 'exit' to exit.")
+
+        # Основной интерактивный цикл
+        while True:
+            try:
+                # Чтение команды от пользователя
+                user_input = input(f"{self.vfs_name}> ").strip()
+
+                if not user_input:
+                    continue  # Пропускаем пустой ввод
+
+                # Разбор и выполнение команды
+                parts = self.parse_command(user_input)
+                if parts is None:
+                    continue  # Пропускаем команды с ошибками разбора
+
+                command = parts[0]
+                args = parts[1:]
+
+                self.execute_command(command, args)
+
+            except KeyboardInterrupt:
+                # Обработка Ctrl+C
+                print("\nUse 'exit' to exit the emulator")
+            except EOFError:
+                # Обработка Ctrl+D
+                print("\nExiting...")
+                break
+
+
+def main():
+    """Основная функция для запуска эмулятора из командной строки"""
+    parser = argparse.ArgumentParser(description='VFS Emulator')
+    parser.add_argument('--vfs-root', help='Path to VFS physical location')
+    parser.add_argument('--script', help='Path to startup script')
+
+    args = parser.parse_args()
+
+    # Создаем и запускаем эмулятор
+    emulator = VFSEmulator(vfs_root=args.vfs_root, startup_script=args.script)
+    emulator.run()
+
+
+if __name__ == "__main__":
+    main()
