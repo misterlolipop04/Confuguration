@@ -1,0 +1,5 @@
+help
+ls -l
+cd $HOME
+ls
+exit
